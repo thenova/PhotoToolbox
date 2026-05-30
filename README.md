@@ -48,7 +48,25 @@ Compiles TypeScript and bundles all three targets (main, preload, renderer) into
 npm run dist
 ```
 
-Runs `build` then packages the app with electron-builder into `dist/Photo Toolbox-1.0.0-Setup.exe` (NSIS installer, x64).
+Runs `build` then packages the app with electron-builder. Output goes to `dist/`:
+
+| Platform | Output |
+|----------|--------|
+| Windows | `Photo Toolbox-1.0.0-Setup.exe` (NSIS, x64) |
+| macOS | `Photo Toolbox-1.0.0.dmg` (x64 + arm64 universal) |
+
+> **macOS packages must be built on macOS.** Running `npm run dist` on Windows only produces the Windows installer. Use the GitHub Actions workflow (see below) to produce both from a single push.
+
+## CI — building both platforms
+
+The included workflow at `.github/workflows/build.yml` builds Windows and macOS installers in parallel on GitHub's hosted runners. It triggers on any `v*` tag push or manually via **Actions → Run workflow**.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Artifacts (`windows-installer` and `mac-dmg`) are available for download from the Actions run page once the jobs complete. No macOS machine or code-signing certificate is required.
 
 ### Windows symlink issue
 
@@ -116,4 +134,4 @@ photo-toolbox/
 - **exifr** — EXIF reading
 - **piexifjs** — EXIF writing (JPEG only)
 - **Leaflet** / **react-leaflet** — map rendering
-- **electron-builder 25** — packaging and NSIS installer
+- **electron-builder 25** — packaging (NSIS installer on Windows, DMG on macOS)
