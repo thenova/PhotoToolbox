@@ -3,6 +3,7 @@ import type { ToolId, ToolDefinition } from '../../../shared/types'
 const TOOLS: ToolDefinition[] = [
   { id: 'photo-sorter', label: 'Photo Sorter', description: 'Sort by date',    icon: 'sort' },
   { id: 'exif-editor',  label: 'EXIF Editor',  description: 'Edit metadata',   icon: 'exif' },
+  { id: 'photo-map',    label: 'Photo Map',    description: 'Map GPS photos',  icon: 'map'  },
 ]
 
 function SortIcon(): JSX.Element {
@@ -25,9 +26,20 @@ function ExifIcon(): JSX.Element {
   )
 }
 
+function MapIcon(): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+      <line x1="8" y1="2" x2="8" y2="18"/>
+      <line x1="16" y1="6" x2="16" y2="22"/>
+    </svg>
+  )
+}
+
 function getIcon(icon: string): JSX.Element {
   if (icon === 'sort') return <SortIcon />
   if (icon === 'exif') return <ExifIcon />
+  if (icon === 'map')  return <MapIcon />
   return <SortIcon />
 }
 

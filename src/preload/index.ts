@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ExifReadResult, ExifSaveResult, ImageFile } from '../shared/types'
+import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ExifReadResult, ExifSaveResult, ImageFile, GeoPhoto, MapScanProgress } from '../shared/types'
 
 const api = {
   openFolder: (): Promise<string | null> =>
@@ -30,7 +30,18 @@ const api = {
     ipcRenderer.invoke('exif:readTags', filePath),
 
   saveExif: (filePath: string, changes: Record<string, string>): Promise<ExifSaveResult> =>
-    ipcRenderer.invoke('exif:saveTags', filePath, changes)
+    ipcRenderer.invoke('exif:saveTags', filePath, changes),
+
+  scanForGps: (folderPath: string): Promise<GeoPhoto[]> =>
+    ipcRenderer.invoke('map:scan', folderPath),
+
+  onMapProgress: (callback: (data: MapScanProgress) => void): void => {
+    ipcRenderer.on('map:progress', (_event, data: MapScanProgress) => callback(data))
+  },
+
+  offMapProgress: (): void => {
+    ipcRenderer.removeAllListeners('map:progress')
+  }
 }
 
 if (process.contextIsolated) {

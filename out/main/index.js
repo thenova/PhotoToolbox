@@ -312,6 +312,57 @@ electron.app.whenReady().then(() => {
       return { success: false, error: String(err) };
     }
   });
+  electron.ipcMain.handle("map:scan", async (event, folderPath) => {
+    function collectPhotos(dir, depth) {
+      if (depth > 10) return [];
+      const results = [];
+      try {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) results.push(...collectPhotos(full, depth + 1));
+          else if (isPhoto(entry.name)) results.push(full);
+        }
+      } catch {
+      }
+      return results;
+    }
+    const allFiles = collectPhotos(folderPath, 0);
+    const total = allFiles.length;
+    const geoPhotos = [];
+    let exifr = null;
+    try {
+      const m = await import("exifr");
+      exifr = m.default ?? m;
+    } catch {
+    }
+    for (let i = 0; i < total; i++) {
+      const filePath = allFiles[i];
+      let photo = null;
+      try {
+        if (exifr) {
+          const data = await exifr.parse(filePath, {
+            gps: true,
+            reviveValues: true,
+            translateValues: true,
+            mergeOutput: true
+          });
+          if (data?.latitude != null && data?.longitude != null) {
+            photo = {
+              path: filePath,
+              name: path.basename(filePath),
+              lat: data.latitude,
+              lng: data.longitude,
+              date: data.DateTimeOriginal instanceof Date ? data.DateTimeOriginal.toISOString() : null
+            };
+            geoPhotos.push(photo);
+          }
+        }
+      } catch {
+      }
+      event.sender.send("map:progress", { current: i + 1, total, photo });
+    }
+    return geoPhotos;
+  });
   createWindow();
   electron.app.on("activate", () => {
     if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();

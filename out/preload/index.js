@@ -14,7 +14,14 @@ const api = {
   },
   loadPhotoFolder: (folderPath) => electron.ipcRenderer.invoke("exif:loadFolder", folderPath),
   readExif: (filePath) => electron.ipcRenderer.invoke("exif:readTags", filePath),
-  saveExif: (filePath, changes) => electron.ipcRenderer.invoke("exif:saveTags", filePath, changes)
+  saveExif: (filePath, changes) => electron.ipcRenderer.invoke("exif:saveTags", filePath, changes),
+  scanForGps: (folderPath) => electron.ipcRenderer.invoke("map:scan", folderPath),
+  onMapProgress: (callback) => {
+    electron.ipcRenderer.on("map:progress", (_event, data) => callback(data));
+  },
+  offMapProgress: () => {
+    electron.ipcRenderer.removeAllListeners("map:progress");
+  }
 };
 if (process.contextIsolated) {
   try {

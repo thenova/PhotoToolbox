@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ImageFile, ExifReadResult, ExifSaveResult } from '../../../shared/types'
+import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ImageFile, ExifReadResult, ExifSaveResult, GeoPhoto, MapScanProgress } from '../../../shared/types'
 
 declare global {
   interface Window {
@@ -19,6 +19,11 @@ declare global {
       loadPhotoFolder: (folderPath: string) => Promise<{ success: boolean; files: ImageFile[]; error?: string }>
       readExif: (filePath: string) => Promise<ExifReadResult>
       saveExif: (filePath: string, changes: Record<string, string>) => Promise<ExifSaveResult>
+
+      // Photo Map
+      scanForGps: (folderPath: string) => Promise<GeoPhoto[]>
+      onMapProgress: (callback: (data: MapScanProgress) => void) => void
+      offMapProgress: () => void
     }
   }
 }

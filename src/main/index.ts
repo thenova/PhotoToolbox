@@ -311,6 +311,63 @@ app.whenReady().then(() => {
     }
   })
 
+  // ── Photo Map: recursive GPS scan ────────────────────────────────────────
+  ipcMain.handle('map:scan', async (event, folderPath: string) => {
+    // Collect all photo paths recursively (max 10 levels deep)
+    function collectPhotos(dir: string, depth: number): string[] {
+      if (depth > 10) return []
+      const results: string[] = []
+      try {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name)
+          if (entry.isDirectory()) results.push(...collectPhotos(full, depth + 1))
+          else if (isPhoto(entry.name)) results.push(full)
+        }
+      } catch { /* skip inaccessible dirs */ }
+      return results
+    }
+
+    const allFiles = collectPhotos(folderPath, 0)
+    const total = allFiles.length
+    const geoPhotos: Array<{ path: string; name: string; lat: number; lng: number; date: string | null }> = []
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let exifr: any = null
+    try { const m = await import('exifr'); exifr = m.default ?? m } catch { /* ignore */ }
+
+    for (let i = 0; i < total; i++) {
+      const filePath = allFiles[i]
+      let photo: typeof geoPhotos[number] | null = null
+
+      try {
+        if (exifr) {
+          const data = await exifr.parse(filePath, {
+            gps: true,
+            reviveValues: true,
+            translateValues: true,
+            mergeOutput: true
+          })
+          if (data?.latitude != null && data?.longitude != null) {
+            photo = {
+              path: filePath,
+              name: path.basename(filePath),
+              lat: data.latitude,
+              lng: data.longitude,
+              date: data.DateTimeOriginal instanceof Date
+                ? data.DateTimeOriginal.toISOString()
+                : null
+            }
+            geoPhotos.push(photo)
+          }
+        }
+      } catch { /* ignore unreadable files */ }
+
+      event.sender.send('map:progress', { current: i + 1, total, photo })
+    }
+
+    return geoPhotos
+  })
+
   createWindow()
 
   app.on('activate', () => {

@@ -50,7 +50,21 @@ export interface ExifSaveResult {
   error?: string
 }
 
-export type ToolId = 'photo-sorter' | 'exif-editor'
+export interface GeoPhoto {
+  path: string
+  name: string
+  lat: number
+  lng: number
+  date: string | null
+}
+
+export interface MapScanProgress {
+  current: number
+  total: number
+  photo: GeoPhoto | null
+}
+
+export type ToolId = 'photo-sorter' | 'exif-editor' | 'photo-map'
 
 export interface ToolDefinition {
   id: ToolId
