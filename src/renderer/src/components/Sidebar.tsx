@@ -3,7 +3,9 @@ import type { ToolId, ToolDefinition } from '../../../shared/types'
 const TOOLS: ToolDefinition[] = [
   { id: 'photo-sorter', label: 'Photo Sorter', description: 'Sort by date',    icon: 'sort' },
   { id: 'exif-editor',  label: 'EXIF Editor',  description: 'Edit metadata',   icon: 'exif' },
-  { id: 'photo-map',    label: 'Photo Map',    description: 'Map GPS photos',  icon: 'map'  },
+  { id: 'photo-map',    label: 'Photo Map',    description: 'Map GPS photos',  icon: 'map'    },
+  { id: 'photo-renamer', label: 'Photo Renamer', description: 'Bulk rename',    icon: 'rename' },
+  { id: 'meta-overview', label: 'Metadata Stats', description: 'EXIF overview', icon: 'stats'  },
 ]
 
 function SortIcon(): JSX.Element {
@@ -36,10 +38,30 @@ function MapIcon(): JSX.Element {
   )
 }
 
+function RenameIcon(): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+    </svg>
+  )
+}
+
+function StatsIcon(): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/>
+      <line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+  )
+}
+
 function getIcon(icon: string): JSX.Element {
-  if (icon === 'sort') return <SortIcon />
-  if (icon === 'exif') return <ExifIcon />
-  if (icon === 'map')  return <MapIcon />
+  if (icon === 'sort')   return <SortIcon />
+  if (icon === 'exif')   return <ExifIcon />
+  if (icon === 'map')    return <MapIcon />
+  if (icon === 'rename') return <RenameIcon />
+  if (icon === 'stats')  return <StatsIcon />
   return <SortIcon />
 }
 

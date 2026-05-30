@@ -363,6 +363,159 @@ electron.app.whenReady().then(() => {
     }
     return geoPhotos;
   });
+  electron.ipcMain.handle("rename:loadMeta", async (event, folderPath) => {
+    try {
+      const files = fs.readdirSync(folderPath).filter(isPhoto);
+      const total = files.length;
+      let exifr = null;
+      try {
+        const m = await import("exifr");
+        exifr = m.default ?? m;
+      } catch {
+      }
+      const metas = [];
+      for (let i = 0; i < files.length; i++) {
+        const name = files[i];
+        const filePath = path.join(folderPath, name);
+        const ext = path.extname(name).toLowerCase();
+        const baseName = path.basename(name, path.extname(name));
+        const stat = fs.statSync(filePath);
+        let date = null;
+        let cameraMake = "";
+        let cameraModel = "";
+        try {
+          if (exifr) {
+            const data = await exifr.parse(filePath, {
+              reviveValues: true,
+              pick: ["DateTimeOriginal", "Make", "Model"]
+            });
+            if (data) {
+              if (data.DateTimeOriginal instanceof Date) date = data.DateTimeOriginal.toISOString();
+              cameraMake = String(data.Make || "").trim();
+              cameraModel = String(data.Model || "").trim();
+            }
+          }
+        } catch {
+        }
+        metas.push({ name, path: filePath, ext, baseName, date, fileDate: stat.mtime.toISOString(), cameraMake, cameraModel });
+        event.sender.send("rename:progress", { current: i + 1, total });
+      }
+      return { success: true, metas };
+    } catch (err) {
+      return { success: false, metas: [], error: String(err) };
+    }
+  });
+  electron.ipcMain.handle("rename:apply", (_event, renames) => {
+    let success = 0, failed = 0;
+    const errors = [];
+    for (const { from, to } of renames) {
+      try {
+        if (from === to) continue;
+        if (fs.existsSync(to)) {
+          failed++;
+          errors.push(`${path.basename(from)}: target already exists`);
+          continue;
+        }
+        fs.renameSync(from, to);
+        success++;
+      } catch (err) {
+        failed++;
+        errors.push(`${path.basename(from)}: ${String(err)}`);
+      }
+    }
+    return { success, failed, errors };
+  });
+  electron.ipcMain.handle("meta:scan", async (event, folderPath) => {
+    function collectPhotos(dir, depth) {
+      if (depth > 10) return [];
+      const results = [];
+      try {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) results.push(...collectPhotos(full, depth + 1));
+          else if (isPhoto(e.name)) results.push(full);
+        }
+      } catch {
+      }
+      return results;
+    }
+    const allFiles = collectPhotos(folderPath, 0);
+    const total = allFiles.length;
+    let exifr = null;
+    try {
+      const m = await import("exifr");
+      exifr = m.default ?? m;
+    } catch {
+    }
+    const cams = /* @__PURE__ */ new Map();
+    const lenses = /* @__PURE__ */ new Map();
+    const apertures = /* @__PURE__ */ new Map();
+    const shutters = /* @__PURE__ */ new Map();
+    const isos = /* @__PURE__ */ new Map();
+    const focals = /* @__PURE__ */ new Map();
+    const yrs = /* @__PURE__ */ new Map();
+    let flashUsed = 0, flashNotUsed = 0, flashUnknown = 0, withExif = 0;
+    const inc = (m, k) => m.set(k, (m.get(k) ?? 0) + 1);
+    for (let i = 0; i < total; i++) {
+      try {
+        if (exifr) {
+          const d = await exifr.parse(allFiles[i], {
+            reviveValues: true,
+            mergeOutput: true,
+            pick: [
+              "Make",
+              "Model",
+              "LensModel",
+              "LensMake",
+              "FNumber",
+              "ExposureTime",
+              "ISO",
+              "FocalLength",
+              "DateTimeOriginal",
+              "Flash"
+            ]
+          });
+          if (d) {
+            withExif++;
+            inc(cams, [d.Make, d.Model].filter(Boolean).map(String).join(" ").trim() || "Unknown Camera");
+            const lens = String(d.LensModel || d.LensMake || "").trim();
+            inc(lenses, lens || "Unknown Lens");
+            if (d.FNumber != null) {
+              const f = Number(d.FNumber);
+              inc(apertures, `f/${Number.isInteger(f) ? f : f.toFixed(1)}`);
+            }
+            if (d.ExposureTime != null) {
+              const et = Number(d.ExposureTime);
+              inc(shutters, et >= 1 ? `${et} s` : `1/${Math.round(1 / et)} s`);
+            }
+            if (d.ISO != null) inc(isos, String(d.ISO));
+            if (d.FocalLength != null) inc(focals, `${Math.round(Number(d.FocalLength))} mm`);
+            if (d.DateTimeOriginal instanceof Date) inc(yrs, String(d.DateTimeOriginal.getFullYear()));
+            if (d.Flash != null) {
+              if ((Number(d.Flash) & 1) === 1) flashUsed++;
+              else flashNotUsed++;
+            } else flashUnknown++;
+          }
+        }
+      } catch {
+      }
+      event.sender.send("meta:progress", { current: i + 1, total });
+    }
+    const byCount = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
+    const byKey = (m, parse) => [...m.entries()].sort((a, b) => parse(a[0]) - parse(b[0]));
+    return {
+      total: allFiles.length,
+      withExif,
+      cameras: byCount(cams),
+      lenses: byCount(lenses),
+      apertures: byKey(apertures, (s) => parseFloat(s.replace("f/", ""))),
+      shutterSpeeds: byKey(shutters, (s) => s.startsWith("1/") ? 1 / parseInt(s.slice(2)) : parseFloat(s)),
+      isos: byKey(isos, (s) => parseFloat(s)),
+      focalLengths: byKey(focals, (s) => parseFloat(s)),
+      years: [...yrs.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+      flash: { used: flashUsed, notUsed: flashNotUsed, unknown: flashUnknown }
+    };
+  });
   createWindow();
   electron.app.on("activate", () => {
     if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();

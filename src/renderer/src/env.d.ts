@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ImageFile, ExifReadResult, ExifSaveResult, GeoPhoto, MapScanProgress } from '../../../shared/types'
+import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ImageFile, ExifReadResult, ExifSaveResult, GeoPhoto, MapScanProgress, PhotoMeta, RenameProgress, RenameResult, MetaStats } from '../../../shared/types'
 
 declare global {
   interface Window {
@@ -24,6 +24,17 @@ declare global {
       scanForGps: (folderPath: string) => Promise<GeoPhoto[]>
       onMapProgress: (callback: (data: MapScanProgress) => void) => void
       offMapProgress: () => void
+
+      // Photo Renamer
+      loadRenameMeta: (folderPath: string) => Promise<{ success: boolean; metas: PhotoMeta[]; error?: string }>
+      applyRenames: (renames: { from: string; to: string }[]) => Promise<RenameResult>
+      onRenameProgress: (callback: (data: RenameProgress) => void) => void
+      offRenameProgress: () => void
+
+      // Metadata Overview
+      scanMetadata: (folderPath: string) => Promise<MetaStats>
+      onMetaProgress: (callback: (data: { current: number; total: number }) => void) => void
+      offMetaProgress: () => void
     }
   }
 }

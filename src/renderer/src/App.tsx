@@ -3,6 +3,8 @@ import Sidebar from './components/Sidebar'
 import PhotoSorter from './tools/PhotoSorter'
 import ExifEditor from './tools/ExifEditor'
 import PhotoMap from './tools/PhotoMap'
+import PhotoRenamer from './tools/PhotoRenamer'
+import MetaOverview from './tools/MetaOverview'
 import type { ToolId } from '../../shared/types'
 
 export default function App(): JSX.Element {
@@ -14,7 +16,9 @@ export default function App(): JSX.Element {
       <main className="flex-1 overflow-hidden">
         {activeTool === 'photo-sorter' && <PhotoSorter />}
         {activeTool === 'exif-editor'  && <ExifEditor />}
-        {activeTool === 'photo-map'    && <PhotoMap />}
+        {activeTool === 'photo-map'     && <PhotoMap />}
+        {activeTool === 'photo-renamer' && <PhotoRenamer />}
+        {activeTool === 'meta-overview' && <MetaOverview />}
       </main>
     </div>
   )

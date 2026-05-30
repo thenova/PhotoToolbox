@@ -7,21 +7,18 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "dist": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
-    "@types/leaflet": "^1.9.21",
     "exifr": "^7.1.3",
-    "leaflet": "^1.9.4",
-    "piexifjs": "^1.0.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-leaflet": "^4.2.1"
+    "piexifjs": "^1.0.6"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/leaflet": "^1.9.21",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.4",
@@ -29,7 +26,11 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "leaflet": "^1.9.4",
     "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
     "tailwindcss": "^3.4.16",
     "typescript": "^5.7.2",
     "vite": "^5.4.0"
@@ -37,18 +38,39 @@
   "build": {
     "appId": "com.photo-toolbox",
     "productName": "Photo Toolbox",
+    "copyright": "Copyright © 2024 Photo Toolbox",
     "directories": {
-      "buildResources": "build"
+      "buildResources": "build",
+      "output": "dist"
     },
     "files": [
       "!**/.vscode/*",
       "!src/*",
       "!electron.vite.config.{js,ts,mjs,cjs}",
+      "!tailwind.config.js",
+      "!postcss.config.mjs",
+      "!tsconfig*.json",
       "!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
       "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
     ],
     "win": {
-      "executableName": "photo-toolbox"
+      "executableName": "Photo Toolbox",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-Setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "${productName}"
     }
   }
 }

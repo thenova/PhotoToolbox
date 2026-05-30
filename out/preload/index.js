@@ -21,6 +21,21 @@ const api = {
   },
   offMapProgress: () => {
     electron.ipcRenderer.removeAllListeners("map:progress");
+  },
+  loadRenameMeta: (folderPath) => electron.ipcRenderer.invoke("rename:loadMeta", folderPath),
+  applyRenames: (renames) => electron.ipcRenderer.invoke("rename:apply", renames),
+  onRenameProgress: (callback) => {
+    electron.ipcRenderer.on("rename:progress", (_event, data) => callback(data));
+  },
+  offRenameProgress: () => {
+    electron.ipcRenderer.removeAllListeners("rename:progress");
+  },
+  scanMetadata: (folderPath) => electron.ipcRenderer.invoke("meta:scan", folderPath),
+  onMetaProgress: (callback) => {
+    electron.ipcRenderer.on("meta:progress", (_event, data) => callback(data));
+  },
+  offMetaProgress: () => {
+    electron.ipcRenderer.removeAllListeners("meta:progress");
   }
 };
 if (process.contextIsolated) {

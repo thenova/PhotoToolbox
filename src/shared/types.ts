@@ -64,7 +64,42 @@ export interface MapScanProgress {
   photo: GeoPhoto | null
 }
 
-export type ToolId = 'photo-sorter' | 'exif-editor' | 'photo-map'
+export interface PhotoMeta {
+  name: string
+  path: string
+  ext: string        // lowercase with dot, e.g. ".jpg"
+  baseName: string   // filename without extension
+  date: string | null  // ISO from EXIF, null if unavailable
+  fileDate: string   // ISO from file mtime (always available)
+  cameraMake: string
+  cameraModel: string
+}
+
+export interface RenameProgress {
+  current: number
+  total: number
+}
+
+export interface RenameResult {
+  success: number
+  failed: number
+  errors: string[]
+}
+
+export interface MetaStats {
+  total: number
+  withExif: number
+  cameras: [string, number][]
+  lenses: [string, number][]
+  apertures: [string, number][]
+  shutterSpeeds: [string, number][]
+  isos: [string, number][]
+  focalLengths: [string, number][]
+  years: [string, number][]
+  flash: { used: number; notUsed: number; unknown: number }
+}
+
+export type ToolId = 'photo-sorter' | 'exif-editor' | 'photo-map' | 'photo-renamer' | 'meta-overview'
 
 export interface ToolDefinition {
   id: ToolId

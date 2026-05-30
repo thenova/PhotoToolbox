@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ExifReadResult, ExifSaveResult, ImageFile, GeoPhoto, MapScanProgress } from '../shared/types'
+import type { VerifyResult, CopyResult, ProgressData, PreviewResult, ExifReadResult, ExifSaveResult, ImageFile, GeoPhoto, MapScanProgress, PhotoMeta, RenameProgress, RenameResult, MetaStats } from '../shared/types'
 
 const api = {
   openFolder: (): Promise<string | null> =>
@@ -41,6 +41,31 @@ const api = {
 
   offMapProgress: (): void => {
     ipcRenderer.removeAllListeners('map:progress')
+  },
+
+  loadRenameMeta: (folderPath: string): Promise<{ success: boolean; metas: PhotoMeta[]; error?: string }> =>
+    ipcRenderer.invoke('rename:loadMeta', folderPath),
+
+  applyRenames: (renames: { from: string; to: string }[]): Promise<RenameResult> =>
+    ipcRenderer.invoke('rename:apply', renames),
+
+  onRenameProgress: (callback: (data: RenameProgress) => void): void => {
+    ipcRenderer.on('rename:progress', (_event, data: RenameProgress) => callback(data))
+  },
+
+  offRenameProgress: (): void => {
+    ipcRenderer.removeAllListeners('rename:progress')
+  },
+
+  scanMetadata: (folderPath: string): Promise<MetaStats> =>
+    ipcRenderer.invoke('meta:scan', folderPath),
+
+  onMetaProgress: (callback: (data: { current: number; total: number }) => void): void => {
+    ipcRenderer.on('meta:progress', (_event, data) => callback(data))
+  },
+
+  offMetaProgress: (): void => {
+    ipcRenderer.removeAllListeners('meta:progress')
   }
 }
 
