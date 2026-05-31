@@ -20,18 +20,29 @@ function formatDate(iso: string | null): string {
 
 // ── Map sub-components (must be inside <MapContainer>) ────────────────────────
 
-function FitBoundsOnLoad({ photos }: { photos: GeoPhoto[] }): null {
+function FitBoundsOnLoad({ photos, isScanning }: { photos: GeoPhoto[]; isScanning: boolean }): null {
   const map = useMap()
-  const fittedFor = useRef(0)
+  const hasInitialFit = useRef(false)
+  const prevIsScanning = useRef(false)
 
   useEffect(() => {
-    if (photos.length === 0 || photos.length === fittedFor.current) return
-    fittedFor.current = photos.length
+    const scanJustStarted = isScanning && !prevIsScanning.current
+    const scanJustEnded = !isScanning && prevIsScanning.current
+    prevIsScanning.current = isScanning
+
+    if (scanJustStarted) hasInitialFit.current = false
+    if (photos.length === 0) return
+
+    // Fit once when the first GPS photo is found, then again when the scan finishes
+    const shouldFit = (isScanning && !hasInitialFit.current) || scanJustEnded
+    if (!shouldFit) return
+    if (isScanning) hasInitialFit.current = true
+
     try {
       const bounds = L.latLngBounds(photos.map((p) => [p.lat, p.lng] as [number, number]))
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [48, 48], maxZoom: 14 })
     } catch { /* ignore */ }
-  }, [photos, map])
+  }, [photos, isScanning, map])
 
   return null
 }
@@ -115,14 +126,14 @@ export default function PhotoMap(): JSX.Element {
   const photoBatch = useRef<GeoPhoto[]>([])
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Flush batched GPS photos to React state every 300 ms while scanning
+  // Flush batched GPS photos to React state every 150 ms while scanning
   useEffect(() => {
     if (!isScanning) return
     const id = setInterval(() => {
       if (photoBatch.current.length === 0) return
       const batch = photoBatch.current.splice(0)
       setPhotos((prev) => [...prev, ...batch])
-    }, 300)
+    }, 150)
     return () => clearInterval(id)
   }, [isScanning])
 
@@ -155,13 +166,18 @@ export default function PhotoMap(): JSX.Element {
       if (data.photo) photoBatch.current.push(data.photo)
     })
 
-    const finalPhotos = await window.api.scanForGps(sourceFolder)
-
-    window.api.offMapProgress()
-    setPhotos(finalPhotos)
-    photoBatch.current = []
-    setIsScanning(false)
-    setProgress(null)
+    try {
+      const finalPhotos = await window.api.scanForGps(sourceFolder)
+      window.api.offMapProgress()
+      setPhotos(finalPhotos)
+    } catch {
+      window.api.offMapProgress()
+      setPhotos([])
+    } finally {
+      photoBatch.current = []
+      setIsScanning(false)
+      setProgress(null)
+    }
   }, [sourceFolder, isScanning])
 
   const handleSelectFromList = useCallback((photo: GeoPhoto) => {
@@ -308,7 +324,7 @@ export default function PhotoMap(): JSX.Element {
             maxZoom={19}
           />
 
-          <FitBoundsOnLoad photos={photos} />
+          <FitBoundsOnLoad photos={photos} isScanning={isScanning} />
           <PanTo target={panTarget} />
 
           {photos.map((photo) => (

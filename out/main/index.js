@@ -65,6 +65,19 @@ const PHOTO_EXTENSIONS = /* @__PURE__ */ new Set([
 function isPhoto(filename) {
   return PHOTO_EXTENSIONS.has(path.extname(filename).toLowerCase());
 }
+function collectPhotoFiles(dir, depth = 0) {
+  if (depth > 10) return [];
+  const results = [];
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) results.push(...collectPhotoFiles(full, depth + 1));
+      else if (isPhoto(entry.name)) results.push(full);
+    }
+  } catch {
+  }
+  return results;
+}
 function getDateFromFile(filePath, exifData) {
   if (exifData) {
     const raw = exifData["DateTimeOriginal"] || exifData["CreateDate"] || exifData["ModifyDate"];
@@ -95,6 +108,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#0f172a",
+    icon: path.join(__dirname, "../../build/icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       sandbox: false
@@ -126,18 +140,17 @@ electron.app.whenReady().then(() => {
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
-  electron.ipcMain.handle("photos:verify", async (_event, folderPath) => {
+  electron.ipcMain.handle("photos:verify", async (_event, folderPath, includeSubfolders) => {
     try {
-      const entries = fs.readdirSync(folderPath);
-      const photos = entries.filter(isPhoto);
-      return { success: true, count: photos.length, files: photos };
+      const photos = includeSubfolders ? collectPhotoFiles(folderPath) : fs.readdirSync(folderPath).filter(isPhoto);
+      return { success: true, count: photos.length, files: photos.map((p) => path.basename(p)) };
     } catch (err) {
       return { success: false, count: 0, files: [], error: String(err) };
     }
   });
-  electron.ipcMain.handle("photos:preview", async (_event, folderPath) => {
+  electron.ipcMain.handle("photos:preview", async (_event, folderPath, includeSubfolders) => {
     try {
-      const files = fs.readdirSync(folderPath).filter(isPhoto);
+      const filePaths = includeSubfolders ? collectPhotoFiles(folderPath) : fs.readdirSync(folderPath).filter(isPhoto).map((name) => path.join(folderPath, name));
       let exifr = null;
       try {
         const mod = await import("exifr");
@@ -145,8 +158,7 @@ electron.app.whenReady().then(() => {
       } catch {
       }
       const tree = {};
-      for (const file of files) {
-        const filePath = path.join(folderPath, file);
+      for (const filePath of filePaths) {
         let exifData = null;
         try {
           if (exifr) exifData = await exifr.parse(filePath, ["DateTimeOriginal", "CreateDate", "ModifyDate"]);
@@ -159,16 +171,16 @@ electron.app.whenReady().then(() => {
         if (!tree[year]) tree[year] = {};
         if (!tree[year][month]) tree[year][month] = {};
         if (!tree[year][month][day]) tree[year][month][day] = [];
-        tree[year][month][day].push(file);
+        tree[year][month][day].push(path.basename(filePath));
       }
-      return { success: true, tree, totalFiles: files.length };
+      return { success: true, tree, totalFiles: filePaths.length };
     } catch (err) {
       return { success: false, tree: {}, totalFiles: 0, error: String(err) };
     }
   });
   electron.ipcMain.handle(
     "photos:copy",
-    async (event, { source, destinations }) => {
+    async (event, { source, destinations, includeSubfolders }) => {
       let successCount = 0;
       let failedCount = 0;
       const errors = [];
@@ -178,15 +190,15 @@ electron.app.whenReady().then(() => {
         exifr = mod.default ?? mod;
       } catch {
       }
-      const files = fs.readdirSync(source).filter(isPhoto);
-      const total = files.length * destinations.length;
+      const filePaths = includeSubfolders ? collectPhotoFiles(source) : fs.readdirSync(source).filter(isPhoto).map((name) => path.join(source, name));
+      const total = filePaths.length * destinations.length;
       let processed = 0;
-      for (const file of files) {
-        const sourcePath = path.join(source, file);
+      for (const filePath of filePaths) {
+        const file = path.basename(filePath);
         let exifData = null;
         try {
           if (exifr) {
-            exifData = await exifr.parse(sourcePath, [
+            exifData = await exifr.parse(filePath, [
               "DateTimeOriginal",
               "CreateDate",
               "ModifyDate"
@@ -194,7 +206,7 @@ electron.app.whenReady().then(() => {
           }
         } catch {
         }
-        const date = getDateFromFile(sourcePath, exifData);
+        const date = getDateFromFile(filePath, exifData);
         const year = String(date.getFullYear());
         const month = String(date.getMonth() + 1).padStart(2, "0");
         const day = String(date.getDate()).padStart(2, "0");
@@ -204,7 +216,7 @@ electron.app.whenReady().then(() => {
           try {
             fs.mkdirSync(destDir, { recursive: true });
             const destPath = buildDestPath(destDir, file);
-            fs.copyFileSync(sourcePath, destPath);
+            fs.copyFileSync(filePath, destPath);
             successCount++;
           } catch (err) {
             failedCount++;
@@ -346,7 +358,7 @@ electron.app.whenReady().then(() => {
             translateValues: true,
             mergeOutput: true
           });
-          if (data?.latitude != null && data?.longitude != null) {
+          if (Number.isFinite(data?.latitude) && Number.isFinite(data?.longitude)) {
             photo = {
               path: filePath,
               name: path.basename(filePath),
@@ -359,7 +371,10 @@ electron.app.whenReady().then(() => {
         }
       } catch {
       }
-      event.sender.send("map:progress", { current: i + 1, total, photo });
+      try {
+        event.sender.send("map:progress", { current: i + 1, total, photo });
+      } catch {
+      }
     }
     return geoPhotos;
   });
@@ -515,6 +530,20 @@ electron.app.whenReady().then(() => {
       years: [...yrs.entries()].sort((a, b) => a[0].localeCompare(b[0])),
       flash: { used: flashUsed, notUsed: flashNotUsed, unknown: flashUnknown }
     };
+  });
+  const settingsPath = path.join(electron.app.getPath("userData"), "settings.json");
+  electron.ipcMain.handle("settings:load", () => {
+    try {
+      return JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    } catch {
+      return {};
+    }
+  });
+  electron.ipcMain.handle("settings:save", (_event, data) => {
+    try {
+      fs.writeFileSync(settingsPath, JSON.stringify(data, null, 2));
+    } catch {
+    }
   });
   createWindow();
   electron.app.on("activate", () => {

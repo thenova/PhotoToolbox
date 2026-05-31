@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { OutputFolder, VerifyResult, CopyResult, ProgressData, SortTree, PreviewResult } from '../../../shared/types'
 
 // ── Month names ───────────────────────────────────────────────────────────────
@@ -212,11 +212,33 @@ export default function PhotoSorter(): JSX.Element {
   // key used to remount TreeView and reset its expand state on each new preview
   const [previewKey, setPreviewKey] = useState(0)
 
+  const [includeSubfolders, setIncludeSubfolders] = useState(false)
+
   const [outputFolders, setOutputFolders] = useState<OutputFolder[]>([])
+  const settingsLoaded = useRef(false)
 
   const [isCopying, setIsCopying] = useState(false)
   const [progress, setProgress] = useState<ProgressData | null>(null)
   const [copyResult, setCopyResult] = useState<CopyResult | null>(null)
+
+  // ── Persist output folders ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    window.api.loadSettings().then((settings) => {
+      const saved = settings.outputFolders
+      if (Array.isArray(saved)) {
+        setOutputFolders(
+          (saved as string[]).map((p) => ({ id: crypto.randomUUID(), path: p }))
+        )
+      }
+      settingsLoaded.current = true
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!settingsLoaded.current) return
+    window.api.saveSettings({ outputFolders: outputFolders.map((f) => f.path) })
+  }, [outputFolders])
 
   // ── Source ──────────────────────────────────────────────────────────────────
 
@@ -237,18 +259,18 @@ export default function PhotoSorter(): JSX.Element {
     setPreviewResult(null)
     setCopyResult(null)
 
-    const result = await window.api.verifyFolder(sourceFolder.trim())
+    const result = await window.api.verifyFolder(sourceFolder.trim(), includeSubfolders)
     setVerifyResult(result)
     setIsVerifying(false)
 
     if (result.success && result.count > 0) {
       setIsPreviewing(true)
-      const preview = await window.api.previewSort(sourceFolder.trim())
+      const preview = await window.api.previewSort(sourceFolder.trim(), includeSubfolders)
       setPreviewResult(preview)
       setPreviewKey((k) => k + 1)
       setIsPreviewing(false)
     }
-  }, [sourceFolder])
+  }, [sourceFolder, includeSubfolders])
 
   // ── Output ──────────────────────────────────────────────────────────────────
 
@@ -279,13 +301,14 @@ export default function PhotoSorter(): JSX.Element {
 
     const result = await window.api.copyPhotos(
       sourceFolder.trim(),
-      outputFolders.map((f) => f.path)
+      outputFolders.map((f) => f.path),
+      includeSubfolders
     )
 
     window.api.offProgress()
     setCopyResult(result)
     setIsCopying(false)
-  }, [sourceFolder, outputFolders, isCopying])
+  }, [sourceFolder, outputFolders, isCopying, includeSubfolders])
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -339,6 +362,21 @@ export default function PhotoSorter(): JSX.Element {
               Browse
             </button>
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={includeSubfolders}
+              onChange={(e) => {
+                setIncludeSubfolders(e.target.checked)
+                setVerifyResult(null)
+                setPreviewResult(null)
+                setCopyResult(null)
+              }}
+              className="w-3.5 h-3.5 rounded accent-blue-500"
+            />
+            <span className="text-sm text-slate-400">Include subfolders</span>
+          </label>
 
           {verifyResult && (
             <div className={`rounded-lg px-3 py-2.5 text-sm flex items-center gap-2 ${

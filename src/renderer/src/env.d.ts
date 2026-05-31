@@ -9,9 +9,9 @@ declare global {
       openFolder: () => Promise<string | null>
 
       // Photo Sorter
-      verifyFolder: (folderPath: string) => Promise<VerifyResult>
-      previewSort: (folderPath: string) => Promise<PreviewResult>
-      copyPhotos: (source: string, destinations: string[]) => Promise<CopyResult>
+      verifyFolder: (folderPath: string, includeSubfolders: boolean) => Promise<VerifyResult>
+      previewSort: (folderPath: string, includeSubfolders: boolean) => Promise<PreviewResult>
+      copyPhotos: (source: string, destinations: string[], includeSubfolders: boolean) => Promise<CopyResult>
       onProgress: (callback: (data: ProgressData) => void) => void
       offProgress: () => void
 
@@ -35,6 +35,10 @@ declare global {
       scanMetadata: (folderPath: string) => Promise<MetaStats>
       onMetaProgress: (callback: (data: { current: number; total: number }) => void) => void
       offMetaProgress: () => void
+
+      // Settings
+      loadSettings: () => Promise<Record<string, unknown>>
+      saveSettings: (data: Record<string, unknown>) => Promise<void>
     }
   }
 }

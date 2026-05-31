@@ -1,4 +1,5 @@
 import type { ToolId, ToolDefinition } from '../../../shared/types'
+import logoUrl from '../../../../build/icon.png'
 
 const TOOLS: ToolDefinition[] = [
   { id: 'photo-sorter', label: 'Photo Sorter', description: 'Sort by date',    icon: 'sort' },
@@ -76,13 +77,7 @@ export default function Sidebar({ activeTool, onToolChange }: SidebarProps): JSX
       {/* Header */}
       <div className="px-4 py-5 border-b border-slate-700/60">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="m21 15-5-5L5 21" />
-            </svg>
-          </div>
+          <img src={logoUrl} alt="" className="w-8 h-8 rounded-lg shrink-0" />
           <div>
             <p className="text-sm font-semibold text-white leading-tight">Photo</p>
             <p className="text-xs text-slate-400 leading-tight">Toolbox</p>

@@ -22,6 +22,19 @@ function isPhoto(filename: string): boolean {
   return PHOTO_EXTENSIONS.has(path.extname(filename).toLowerCase())
 }
 
+function collectPhotoFiles(dir: string, depth = 0): string[] {
+  if (depth > 10) return []
+  const results: string[] = []
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) results.push(...collectPhotoFiles(full, depth + 1))
+      else if (isPhoto(entry.name)) results.push(full)
+    }
+  } catch { /* skip inaccessible dirs */ }
+  return results
+}
+
 function getDateFromFile(filePath: string, exifData: Record<string, unknown> | null): Date {
   if (exifData) {
     const raw =
@@ -57,6 +70,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0f172a',
+    icon: join(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -99,20 +113,23 @@ app.whenReady().then(() => {
   })
 
   // ── Photos: count photos in folder ───────────────────────────────────────
-  ipcMain.handle('photos:verify', async (_event, folderPath: string) => {
+  ipcMain.handle('photos:verify', async (_event, folderPath: string, includeSubfolders: boolean) => {
     try {
-      const entries = fs.readdirSync(folderPath)
-      const photos = entries.filter(isPhoto)
-      return { success: true, count: photos.length, files: photos }
+      const photos = includeSubfolders
+        ? collectPhotoFiles(folderPath)
+        : fs.readdirSync(folderPath).filter(isPhoto)
+      return { success: true, count: photos.length, files: photos.map((p) => path.basename(p)) }
     } catch (err) {
       return { success: false, count: 0, files: [], error: String(err) }
     }
   })
 
   // ── Photos: build sort-preview tree (reads EXIF) ────────────────────────
-  ipcMain.handle('photos:preview', async (_event, folderPath: string) => {
+  ipcMain.handle('photos:preview', async (_event, folderPath: string, includeSubfolders: boolean) => {
     try {
-      const files = fs.readdirSync(folderPath).filter(isPhoto)
+      const filePaths = includeSubfolders
+        ? collectPhotoFiles(folderPath)
+        : fs.readdirSync(folderPath).filter(isPhoto).map((name) => path.join(folderPath, name))
 
       let exifr: { parse: (p: string, tags: string[]) => Promise<Record<string, unknown> | null> } | null = null
       try {
@@ -122,9 +139,7 @@ app.whenReady().then(() => {
 
       const tree: Record<string, Record<string, Record<string, string[]>>> = {}
 
-      for (const file of files) {
-        const filePath = path.join(folderPath, file)
-
+      for (const filePath of filePaths) {
         let exifData: Record<string, unknown> | null = null
         try {
           if (exifr) exifData = await exifr.parse(filePath, ['DateTimeOriginal', 'CreateDate', 'ModifyDate'])
@@ -138,10 +153,10 @@ app.whenReady().then(() => {
         if (!tree[year]) tree[year] = {}
         if (!tree[year][month]) tree[year][month] = {}
         if (!tree[year][month][day]) tree[year][month][day] = []
-        tree[year][month][day].push(file)
+        tree[year][month][day].push(path.basename(filePath))
       }
 
-      return { success: true, tree, totalFiles: files.length }
+      return { success: true, tree, totalFiles: filePaths.length }
     } catch (err) {
       return { success: false, tree: {}, totalFiles: 0, error: String(err) }
     }
@@ -150,7 +165,7 @@ app.whenReady().then(() => {
   // ── Photos: copy and sort ────────────────────────────────────────────────
   ipcMain.handle(
     'photos:copy',
-    async (event, { source, destinations }: { source: string; destinations: string[] }) => {
+    async (event, { source, destinations, includeSubfolders }: { source: string; destinations: string[]; includeSubfolders: boolean }) => {
       let successCount = 0
       let failedCount = 0
       const errors: string[] = []
@@ -164,23 +179,25 @@ app.whenReady().then(() => {
         // fall back to mtime if exifr unavailable
       }
 
-      const files = fs.readdirSync(source).filter(isPhoto)
-      const total = files.length * destinations.length
+      const filePaths = includeSubfolders
+        ? collectPhotoFiles(source)
+        : fs.readdirSync(source).filter(isPhoto).map((name) => path.join(source, name))
+      const total = filePaths.length * destinations.length
       let processed = 0
 
-      for (const file of files) {
-        const sourcePath = path.join(source, file)
+      for (const filePath of filePaths) {
+        const file = path.basename(filePath)
 
         let exifData: Record<string, unknown> | null = null
         try {
           if (exifr) {
-            exifData = await exifr.parse(sourcePath, [
+            exifData = await exifr.parse(filePath, [
               'DateTimeOriginal', 'CreateDate', 'ModifyDate'
             ])
           }
         } catch { /* ignore EXIF errors, fall back to mtime */ }
 
-        const date = getDateFromFile(sourcePath, exifData)
+        const date = getDateFromFile(filePath, exifData)
         const year = String(date.getFullYear())
         const month = String(date.getMonth() + 1).padStart(2, '0')
         const day = String(date.getDate()).padStart(2, '0')
@@ -192,7 +209,7 @@ app.whenReady().then(() => {
           try {
             fs.mkdirSync(destDir, { recursive: true })
             const destPath = buildDestPath(destDir, file)
-            fs.copyFileSync(sourcePath, destPath)
+            fs.copyFileSync(filePath, destPath)
             successCount++
           } catch (err) {
             failedCount++
@@ -347,7 +364,10 @@ app.whenReady().then(() => {
             translateValues: true,
             mergeOutput: true
           })
-          if (data?.latitude != null && data?.longitude != null) {
+          if (
+            Number.isFinite(data?.latitude) &&
+            Number.isFinite(data?.longitude)
+          ) {
             photo = {
               path: filePath,
               name: path.basename(filePath),
@@ -362,7 +382,9 @@ app.whenReady().then(() => {
         }
       } catch { /* ignore unreadable files */ }
 
-      event.sender.send('map:progress', { current: i + 1, total, photo })
+      try {
+        event.sender.send('map:progress', { current: i + 1, total, photo })
+      } catch { /* renderer may have closed */ }
     }
 
     return geoPhotos
@@ -527,6 +549,17 @@ app.whenReady().then(() => {
       years:         [...yrs.entries()].sort((a, b) => a[0].localeCompare(b[0])),
       flash: { used: flashUsed, notUsed: flashNotUsed, unknown: flashUnknown }
     }
+  })
+
+  // ── Settings: persist user preferences to userData/settings.json ───────────
+  const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+
+  ipcMain.handle('settings:load', () => {
+    try { return JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { return {} }
+  })
+
+  ipcMain.handle('settings:save', (_event, data: unknown) => {
+    try { fs.writeFileSync(settingsPath, JSON.stringify(data, null, 2)) } catch { /* ignore */ }
   })
 
   createWindow()

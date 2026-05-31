@@ -3,9 +3,9 @@ const electron = require("electron");
 const preload = require("@electron-toolkit/preload");
 const api = {
   openFolder: () => electron.ipcRenderer.invoke("dialog:openFolder"),
-  verifyFolder: (folderPath) => electron.ipcRenderer.invoke("photos:verify", folderPath),
-  previewSort: (folderPath) => electron.ipcRenderer.invoke("photos:preview", folderPath),
-  copyPhotos: (source, destinations) => electron.ipcRenderer.invoke("photos:copy", { source, destinations }),
+  verifyFolder: (folderPath, includeSubfolders) => electron.ipcRenderer.invoke("photos:verify", folderPath, includeSubfolders),
+  previewSort: (folderPath, includeSubfolders) => electron.ipcRenderer.invoke("photos:preview", folderPath, includeSubfolders),
+  copyPhotos: (source, destinations, includeSubfolders) => electron.ipcRenderer.invoke("photos:copy", { source, destinations, includeSubfolders }),
   onProgress: (callback) => {
     electron.ipcRenderer.on("photos:progress", (_event, data) => callback(data));
   },
@@ -30,6 +30,8 @@ const api = {
   offRenameProgress: () => {
     electron.ipcRenderer.removeAllListeners("rename:progress");
   },
+  loadSettings: () => electron.ipcRenderer.invoke("settings:load"),
+  saveSettings: (data) => electron.ipcRenderer.invoke("settings:save", data),
   scanMetadata: (folderPath) => electron.ipcRenderer.invoke("meta:scan", folderPath),
   onMetaProgress: (callback) => {
     electron.ipcRenderer.on("meta:progress", (_event, data) => callback(data));

@@ -6,14 +6,14 @@ const api = {
   openFolder: (): Promise<string | null> =>
     ipcRenderer.invoke('dialog:openFolder'),
 
-  verifyFolder: (folderPath: string): Promise<VerifyResult> =>
-    ipcRenderer.invoke('photos:verify', folderPath),
+  verifyFolder: (folderPath: string, includeSubfolders: boolean): Promise<VerifyResult> =>
+    ipcRenderer.invoke('photos:verify', folderPath, includeSubfolders),
 
-  previewSort: (folderPath: string): Promise<PreviewResult> =>
-    ipcRenderer.invoke('photos:preview', folderPath),
+  previewSort: (folderPath: string, includeSubfolders: boolean): Promise<PreviewResult> =>
+    ipcRenderer.invoke('photos:preview', folderPath, includeSubfolders),
 
-  copyPhotos: (source: string, destinations: string[]): Promise<CopyResult> =>
-    ipcRenderer.invoke('photos:copy', { source, destinations }),
+  copyPhotos: (source: string, destinations: string[], includeSubfolders: boolean): Promise<CopyResult> =>
+    ipcRenderer.invoke('photos:copy', { source, destinations, includeSubfolders }),
 
   onProgress: (callback: (data: ProgressData) => void): void => {
     ipcRenderer.on('photos:progress', (_event, data: ProgressData) => callback(data))
@@ -56,6 +56,12 @@ const api = {
   offRenameProgress: (): void => {
     ipcRenderer.removeAllListeners('rename:progress')
   },
+
+  loadSettings: (): Promise<Record<string, unknown>> =>
+    ipcRenderer.invoke('settings:load'),
+
+  saveSettings: (data: Record<string, unknown>): Promise<void> =>
+    ipcRenderer.invoke('settings:save', data),
 
   scanMetadata: (folderPath: string): Promise<MetaStats> =>
     ipcRenderer.invoke('meta:scan', folderPath),

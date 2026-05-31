@@ -39,6 +39,7 @@
     "appId": "com.photo-toolbox",
     "productName": "Photo Toolbox",
     "copyright": "Copyright © 2024 Photo Toolbox",
+    "icon": "build/icon.png",
     "directories": {
       "buildResources": "build",
       "output": "dist"
